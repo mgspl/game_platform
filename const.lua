@@ -8,9 +8,9 @@ local const = {
       name = "Minesweeper",
       filename = "minesweeper",
       difficulties = {
-        { level = "Beginner", side = 9, mines = 10 },
-        { level = "Intermediate",  side = 16, mines = 40 },
-        { level = "Expert", side = 24, mines = 99 },
+        { level = "Beginner", rows = 9, columns = 9, mines = 10 },
+        { level = "Intermediate",  rows = 16, columns = 16, mines = 40 },
+        { level = "Expert", rows = 16, columns = 30, mines = 99 },
       },
     },
   }
