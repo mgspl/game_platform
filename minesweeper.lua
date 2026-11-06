@@ -126,7 +126,7 @@ function Minesweeper:placeMines(firstRow, firstCol)
     if not firstMove and not self:hasMine(row, col) then
       placed = placed + 1
       if self.cheatType == 1 then
-       table.insert(self.minesPos, string.format("(%d, %d)", row, col))
+       self.minesPos[#self.minesPos + 1] = string.format("(%d, %d)", row, col)
       end
       self.mineBoard:setValue(row, col, "*")
     end
@@ -183,7 +183,7 @@ function Minesweeper:cheatPlay()
   local validMoves = {}
   for row = 1, self.side do
     for col = 1, self.side do
-      table.insert(validMoves, {row, col})
+      validMoves[#validMoves + 1] = {row, col}
     end
   end
 
