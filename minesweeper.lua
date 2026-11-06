@@ -1,48 +1,62 @@
 require('helpers')
 local Board = require('board')
+local DIRECTIONS = {{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}}
 local Minesweeper = {}
 
 function Minesweeper.create(config)
   local minesweeper = {}
   minesweeper.config = config
 
-  minesweeper.side      = 0
-  minesweeper.mines     = 0
-  minesweeper.realBoard = Board.create(minesweeper.side, minesweeper.side, '-')
-  minesweeper.board     = Board.create(minesweeper.side, minesweeper.side, '-')
-  minesweeper.mineList  = {}
-  minesweeper.movesLeft = minesweeper.side * minesweeper.side - minesweeper.mines
-
-  setmetatable(minesweeper, { __index = Minesweeper })
+  setmetatable(minesweeper, {
+    __index = Minesweeper
+  })
   return minesweeper
 end
 
 function Minesweeper:run()
   print('Minesweeper is starting...')
   self:chooseDifficulty()
-  self:play()
+  if self.cheatType == 2 then
+    self:cheatPlay()
+  else
+    self:play()
+  end
   print('Minesweeper has finished!')
 end
 
 function Minesweeper:chooseDifficulty()
   print('Select difficulty:')
-  print('1 - Beginner')
-  print('2 - Intermediate')
-  print('3 - Advanced')
-  local level = readNumber('Choice: ', 1, 3, 'Invalid choice. Try again.')
 
-  if level == 1 then
-    self.side, self.mines = self.config.beginner.sides,  self.config.beginner.mines
-  elseif level == 2 then
-    self.side, self.mines = self.config.intermediate.sides,  self.config.intermediate.mines
-  elseif level == 3 then
-    self.side, self.mines = self.config.expert.sides,  self.config.expert.mines
+  for i, diff in ipairs(self.config.difficulties) do
+    print(string.format("%d - %s", i, self.config.difficulties[i].level))
   end
 
-  self.realBoard = Board.create(self.side, self.side, '-')
-  self.board     = Board.create(self.side, self.side, '-')
-  self.mineList  = {}
-  self.movesLeft = self.side * self.side - self.mines
+  local choice = readNumber('Choice: ', 1, #self.config.difficulties + 1, 'Invalid choice. Try again.')
+
+  if choice == #self.config.difficulties + 1 then
+    self.minesPos = {}
+    print("Cheat activated!")
+    print("1 - X-Ray | 2 - Auto solve")
+    local cheatType = readNumber("Cheat: ", 1, 2, "Invalid choice. Try again.")
+    self.cheatType = cheatType
+
+    print('Select difficulty:')
+    for i, diff in ipairs(self.config.difficulties) do
+      print(string.format("%d - %s", i, self.config.difficulties[i].level))
+    end
+
+    choice = readNumber('Choice: ', 1, #self.config.difficulties, 'Invalid choice. Try again.')
+  end
+
+  local side = self.config.difficulties[choice].side
+  local mines = self.config.difficulties[choice].mines
+
+  self.side = side
+  self.mines = mines
+  self.flagCount = mines
+  self.board = Board.create(side, side, '-')
+  self.mineBoard = Board.create(side, side, "-")
+  self.movesLeft = (side * side) - mines
 end
 
 function Minesweeper:isValid(row, col)
@@ -50,31 +64,78 @@ function Minesweeper:isValid(row, col)
 end
 
 function Minesweeper:hasMine(row, col)
-  return self.realBoard:getValue(row, col) == '*'
+  return self.mineBoard:getValue(row, col) == "*"
 end
 
-local function formatTime(seconds)
-  return string.format('%02d:%02d', math.floor(seconds / 60), seconds % 60)
+function Minesweeper:hasFlag(row, col)
+  return self.board:getValue(row, col) == "F"
 end
 
-function Minesweeper:printStatus()
+function Minesweeper:toggleFlag(row, col)
+  local flagged = self:hasFlag(row, col)
+
+  if not flagged then
+    self.board:setValue(row, col, 'F')
+    self.flagCount = self.flagCount - 1
+    return
+  end
+
+  if flagged then
+    self.board:setValue(row, col, "-")
+    self.flagCount = self.flagCount + 1
+    return
+  end
+end
+
+function Minesweeper:gameHUD()
   local elapsed = os.time() - self.startTime
-  print(string.format('Time: %s', formatTime(elapsed)))
+
+  print(string.format("Time: %02d:%02d | Flags remaining: %d | Mines: %d", math.floor(elapsed / 60), elapsed % 60, self.flagCount, self.mines))
+  if self.cheatType == 1 then
+    print("Mines: " .. table.concat(self.minesPos, " | "))
+  end
+  self.board:draw()
 end
 
 function Minesweeper:makeMove()
-  local row    = readNumber('Select row: ',    1, self.side, 'Invalid choice. Try again.')
-  local column = readNumber('Select column: ', 1, self.side, 'Invalid choice. Try again.')
-  return row, column
+  print('Action: 1 - Reveal | 2 - Flag/Unflag')
+  local action = readNumber('Choose action: ', 1, 2, 'Invalid action.')
+  local row = readNumber('Select row: ', 1, self.side, 'Invalid choice. Try again.')
+  local col = readNumber('Select column: ', 1, self.side, 'Invalid choice. Try again.')
+
+  if self.board:getValue(row, col) ~= "-" and not self:hasFlag(row, col) then
+    return
+  end
+
+  return action, row, col
+end
+
+function Minesweeper:placeMines(firstRow, firstCol)
+  local placed = 0
+
+  while placed < self.mines do
+    local row = math.random(1, self.side)
+    local col = math.random(1, self.side)
+    local firstMove
+
+    if row == firstRow and col == firstCol then
+      firstMove = true
+    end
+
+    if not firstMove and not self:hasMine(row, col) then
+      placed = placed + 1
+      if self.cheatType == 1 then
+       table.insert(self.minesPos, string.format("(%d, %d)", row, col))
+      end
+      self.mineBoard:setValue(row, col, "*")
+    end
+  end
 end
 
 function Minesweeper:countAdjacentMines(row, col)
-  local dx    = { -1, -1, -1,  0, 0, 1, 1, 1 }
-  local dy    = { -1,  0,  1, -1, 1,-1, 0, 1 }
   local count = 0
-
-  for i = 1, 8 do
-    local nr, nc = row + dx[i], col + dy[i]
+  for _, dir in ipairs(DIRECTIONS) do
+    local nr, nc = row + dir[1], col + dir[2]
     if self:isValid(nr, nc) and self:hasMine(nr, nc) then
       count = count + 1
     end
@@ -82,98 +143,130 @@ function Minesweeper:countAdjacentMines(row, col)
   return count
 end
 
-function Minesweeper:placeMines()
-  local mark = {}
-  local i    = 1
-
-  while i <= self.mines do
-    local r   = math.random(1, self.side)
-    local c   = math.random(1, self.side)
-    local key = r .. ',' .. c
-
-    if not mark[key] then
-      self.realBoard:setValue(r, c, '*')
-      self.mineList[i]     = { r, c }
-      mark[key]            = true
-      i = i + 1
-    end
-  end
-end
-
-function Minesweeper:replaceMine(row, col)
-  for i = 1, self.side do
-    for j = 1, self.side do
-      if self.realBoard:getValue(i, j) ~= '*' then
-        self.realBoard:setValue(i, j, '*')
-        self.realBoard:setValue(row, col, '-')
-        return
+function Minesweeper:revealAllMines()
+  for row = 1, self.side do
+    for col = 1, self.side do
+      if self:hasMine(row, col) and not self:hasFlag(row, col) then
+        self.board:setValue(row, col, '*')
       end
     end
   end
 end
 
-function Minesweeper:gameLoop(row, column)
-  local cell = self.board:getValue(row, column)
-  if cell ~= '-' then
-    return false
+function Minesweeper:reveal(row, col)
+  if not self:isValid(row, col) or self.board:getValue(row, col) ~= '-' then
+    return
   end
 
-  if self:hasMine(row, column) then
-    self.board:setValue(row, column, '*')
-    for _, m in ipairs(self.mineList) do
-      self.board:setValue(m[1], m[2], '*')
-    end
-    self.board:draw()
-    print('You lost!')
-    return true
-  end
-
-  local count = self:countAdjacentMines(row, column)
+  local count = self:countAdjacentMines(row, col)
+  self.board:setValue(row, col, tostring(count))
   self.movesLeft = self.movesLeft - 1
-  self.board:setValue(row, column, tostring(count))
 
   if count == 0 then
-    local dx = { -1, -1, -1,  0, 0, 1, 1, 1 }
-    local dy = { -1,  0,  1, -1, 1,-1, 0, 1 }
+    for _, dir in ipairs(DIRECTIONS) do
+      self:reveal(row + dir[1], col + dir[2])
+    end
+  end
+end
 
-    for i = 1, 8 do
-      local nr, nc = row + dx[i], column + dy[i]
-      if self:isValid(nr, nc) and not self:hasMine(nr, nc) then
-        if self:gameLoop(nr, nc) then return true end
-      end
+function Minesweeper:cheatChooseMove(validMoves)
+  local id = math.random(1, #validMoves)
+  local row = validMoves[id][1]
+  local col = validMoves[id][2]
+  table.remove(validMoves, id)
+
+   return row, col
+end
+
+function Minesweeper:cheatPlay()
+  local validMoves = {}
+  for row = 1, self.side do
+    for col = 1, self.side do
+      table.insert(validMoves, {row, col})
     end
   end
 
-  return false
+  math.randomseed(os.time())
+  self.startTime = os.time()
+
+  local row, col = self:cheatChooseMove(validMoves)
+  self:placeMines(row, col)
+  self:reveal(row, col)
+  self:gameHUD()
+
+  while true do
+    self:gameHUD()
+    local row, col = self:cheatChooseMove(validMoves)
+
+
+    if self.board:getValue(row, col) ~= "-" and not self:hasFlag(row, col) then
+      print("Invalid move. Try again.")
+    end
+
+    if self:hasMine(row, col) and not self:hasFlag(row, col) then
+      print("Choose action: 1")
+      print("Select row: " .. row)
+      print("Select column: " .. col)
+      self:toggleFlag(row, col)
+      os.execute("sleep 2")
+    end
+
+    if not self:hasMine(row, col) and not self:hasFlag(row, col) then
+      print("Choose action: 1")
+      print("Select row: " .. row)
+      print("Select column: " .. col)
+      self:reveal(row, col)
+      os.execute("sleep 2")
+    end
+
+    if self.movesLeft == 0 then
+      self:gameHUD()
+      print('You won!')
+      break
+    end
+  end
 end
+
 
 function Minesweeper:play()
   math.randomseed(os.time())
-  self:placeMines()
-
   self.startTime = os.time()
-  local gameOver  = false
-  local firstMove = true
+  self:gameHUD()
 
-  while not gameOver do
-    self:printStatus()
-    self.board:draw()
+  local action, row, col = self:makeMove()
+  self:placeMines(row, col)
+  if action == 1 then
+    self:reveal(row, col)
+  else
+    self:toggleFlag(row, col)
+  end
 
-    local row, column = self:makeMove()
+  while true do
+    self:gameHUD()
 
-    if firstMove and self:hasMine(row, column) then
-      self:replaceMine(row, column)
-    end
-    firstMove = false
+    local action, row, col = self:makeMove()
 
-    gameOver = self:gameLoop(row, column)
+    if not action then
+      print("Invalid move. Try again.")
+    elseif action == 2 then
+      self:toggleFlag(row, col)
+    else
+      if self:hasMine(row, col) and not self:hasFlag(row, col) then
+        self:revealAllMines()
+        self:gameHUD()
+        print('You lost!')
+        break
+      end
 
-    if not gameOver and self.movesLeft == 0 then
-      print('You won!')
-      gameOver = true
+      self:reveal(row, col)
+
+      if self.movesLeft == 0 then
+        self:gameHUD()
+        print('You won!')
+        break
+      end
     end
   end
 end
 
 return Minesweeper
-
