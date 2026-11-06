@@ -18,6 +18,7 @@ function Minesweeper:run()
   self:chooseDifficulty()
   if self.cheatType == 2 then
     self:cheatPlay()
+    self.minesPos = nil
   else
     self:play()
   end
