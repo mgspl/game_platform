@@ -20,20 +20,24 @@ function Board.create(rows, columns, defaultValue)
 end
 
 function Board:draw()
-  local text = ' '
+  local buf = {}
+   buf[#buf + 1] = "  "
   for i=1,self.columns do
-    text = text .. ' ' .. tostring(i)
+    buf[#buf + 1] = " "
+    buf[#buf + 1] = tostring(i)
   end
-  text = text .. '\n'
+  buf[#buf + 1] = "\n"
   for i=1,self.rows do
     local row = self.data[i]
-    text = text .. tostring(i)
+    buf[#buf + 1] = " "
+    buf[#buf + 1] = tostring(i)
     for j=1,#row do
-      text = text ..' ' .. row[j]
+      buf[#buf + 1] = " "
+      buf[#buf + 1] = row[j]
     end
-    text = text .. '\n'
+    buf[#buf + 1] = "\n"
   end
-  print(text)
+  print(table.concat(buf))
 end
 
 function Board:setValue(row, column, value)
